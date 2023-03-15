@@ -1,0 +1,1 @@
+# search_and_pickup_by_go
