@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -10,20 +11,88 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	cli "github.com/urfave/cli/v2"
+)
+
+const (
+	SEARCH_FILE = "./search.csv"
+	RESULT_FILE = "./result.csv"
 )
 
 func main() {
-	// 対象ディレクトリ
-	tagetRootDir := "/go/src/testdata"
+	app := &cli.App{
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "dir",
+				Value: "",
+				Usage: "target dir name for search",
+			},
+			&cli.StringFlag{
+				Name:  "extension",
+				Value: "",
+				Usage: "target extension for search",
+			},
+			&cli.StringFlag{
+				Name:  "ignore",
+				Value: "",
+				Usage: "ignore dir name for search",
+			},
+		},
+		Action: func(cCtx *cli.Context) error {
+			// dir arg
+			if len(cCtx.String("dir")) == 0 {
+				return errors.New("error : require dir arg")
+			}
+			tagetRootDir := cCtx.String("dir")
 
-	// 対象ファイル拡張子
-	fileExtension := ".js"
+			// extension arg
+			if len(cCtx.String("extension")) == 0 {
+				return errors.New("error : require extension arg")
+			}
+			var fileExtension string
+			if cCtx.String("extension")[0:1] == "." {
+				fileExtension = cCtx.String("extension")
+			} else {
+				fileExtension = "." + cCtx.String("extension")
+			}
+
+			// ignore arg
+			ignoreDirNameList := []string{}
+			if len(cCtx.String("ignore")) > 0 {
+				ignoreDirNameList = strings.Split(cCtx.String("ignore"), ":")
+			}
+
+			err := search(tagetRootDir, fileExtension, ignoreDirNameList)
+
+			return err
+		},
+	}
+
+	if err := app.Run(os.Args); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func search(tagetRootDir string, fileExtension string, ignoreDirNameList []string) error {
+	fmt.Println(ignoreDirNameList)
 
 	// 対象ディレクトリ配下に存在する対象拡張子のファイルを再帰的に確認して対象ファイルパス一覧を生成
 	var filePathList []string
 	err := filepath.Walk(tagetRootDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			fmt.Println(err)
+			return nil
+		}
+
+		ignoreFlag := false
+		for _, ignore := range ignoreDirNameList {
+			if strings.Contains(path, ignore) {
+				ignoreFlag = true
+				break
+			}
+		}
+		if ignoreFlag {
 			return nil
 		}
 
@@ -37,15 +106,17 @@ func main() {
 		log.Fatal(err)
 	}
 
+	fmt.Println(filePathList)
+
 	// 検索ワード一覧を取得
-	searchFile, err := os.Open("./search.csv")
+	searchFile, err := os.Open(SEARCH_FILE)
 	if err != nil {
 		panic(err)
 	}
 	defer searchFile.Close()
 
 	// 検索結果を書き込むCSVファイルを生成 or 読み込み
-	resultFile, err := os.Create("./result.csv")
+	resultFile, err := os.Create(RESULT_FILE)
 	if err != nil {
 		panic(err)
 	}
@@ -100,4 +171,6 @@ func main() {
 
 		resultFileWriter.Write(resultRecord)
 	}
+
+	return nil
 }
