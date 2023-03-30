@@ -27,16 +27,18 @@ func main() {
 				Name:  "dir",
 				Value: "",
 				Usage: "target dir name for search",
+				Required: true,
 			},
 			&cli.StringFlag{
 				Name:  "extension",
 				Value: "",
-				Usage: "target extension for search",
+				Usage: "target extension for search（ex. .go）",
+				Required: true,
 			},
 			&cli.StringFlag{
 				Name:  "ignore",
 				Value: "",
-				Usage: "ignore dir name for search",
+				Usage: "ignore dir name for search（ex. dirName1:dirName2:dirName3）",
 			},
             &cli.BoolFlag{
                 Name:  "exists",
