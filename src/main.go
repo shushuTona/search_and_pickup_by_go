@@ -38,6 +38,11 @@ func main() {
 				Value: "",
 				Usage: "ignore dir name for search",
 			},
+            &cli.BoolFlag{
+                Name:  "exists",
+                Value: false,
+                Usage: "check without target file path",
+            },
 		},
 		Action: func(cCtx *cli.Context) error {
 			// dir arg
@@ -63,7 +68,10 @@ func main() {
 				ignoreDirNameList = strings.Split(cCtx.String("ignore"), ":")
 			}
 
-			err := search(tagetRootDir, fileExtension, ignoreDirNameList)
+			// existsFlag
+			existsFlag := cCtx.Bool("exists")
+
+			err := search(tagetRootDir, fileExtension, ignoreDirNameList, existsFlag)
 
 			return err
 		},
@@ -74,7 +82,8 @@ func main() {
 	}
 }
 
-func search(tagetRootDir string, fileExtension string, ignoreDirNameList []string) error {
+func search(tagetRootDir string, fileExtension string, ignoreDirNameList []string, existsFlag bool) error {
+	fmt.Println("ignoreDirNameList")
 	fmt.Println(ignoreDirNameList)
 
 	// 対象ディレクトリ配下に存在する対象拡張子のファイルを再帰的に確認して対象ファイルパス一覧を生成
@@ -103,7 +112,7 @@ func search(tagetRootDir string, fileExtension string, ignoreDirNameList []strin
 		return nil
 	})
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	fmt.Println(filePathList)
@@ -111,14 +120,14 @@ func search(tagetRootDir string, fileExtension string, ignoreDirNameList []strin
 	// 検索ワード一覧を取得
 	searchFile, err := os.Open(SEARCH_FILE)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer searchFile.Close()
 
 	// 検索結果を書き込むCSVファイルを生成 or 読み込み
 	resultFile, err := os.Create(RESULT_FILE)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	resultFileWriter := csv.NewWriter(resultFile)
 	defer resultFileWriter.Flush()
@@ -156,6 +165,11 @@ func search(tagetRootDir string, fileExtension string, ignoreDirNameList []strin
 			line := 1
 			// https://golang.org/pkg/bufio/#Scanner.Scan
 			for scanner.Scan() {
+				// existsFlagが有効の場合、1つでも対象ファイルが存在する場合繰り返し処理を終了する。
+				if existsFlag && len(targetList) > 0 {
+					break
+				}
+
 				if strings.Contains(scanner.Text(), searchWord) {
 					targetList = targetList + f.Name() + ":" + strconv.Itoa(line) + "\n"
 				}
@@ -167,7 +181,17 @@ func search(tagetRootDir string, fileExtension string, ignoreDirNameList []strin
 			// 	// Handle the error
 			// }
 		}
-		resultRecord = append(resultRecord, targetList)
+
+		// existsFlagが有効の場合、ファイルパスの代わりに真偽値を追加する。
+		if existsFlag {
+			flag := "false"
+			if len(targetList) > 0 {
+				flag = "true"
+			}
+			resultRecord = append(resultRecord, flag)
+		} else {
+			resultRecord = append(resultRecord, targetList)
+		}
 
 		resultFileWriter.Write(resultRecord)
 	}
